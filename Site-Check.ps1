@@ -42,25 +42,10 @@ Param(
                    $ScriptVer = "6.10"    <#--[ Current version # used in script ]--
                    : 
 ------------------------------------------------------------------------------#>
-<#PSScriptInfo 
-.VERSION 6.10 
-.AUTHOR Kenneth C. Mazie (kcmjr AT kcmjr.com) 
-.DESCRIPTION 
-Programatically creates an email to send to the predetermined user or group for notification about where you are.
-Grabs Outlook email signature from current users profile.  Determines sender by current logged on user.  Optionally
-writes a travel log to users Documents folder and optionally will lock the PC.  Dynamically grows or shrinks the
-form depending on the number of sites in the site table.
-#>
 #Requires -Version 5.1
-
 Clear-Host 
 
-#--[ For Testing ]-------------
-$Script:Console = $true
-#$Script:Debug = $true
-#------------------------------
-
-#--[ Suppress Console ]-------------------------------------------------------
+<#--[ Suppress Console ]-------------------------------------------------------
 Add-Type -Name Window -Namespace Console -MemberDefinition ' 
 [DllImport("Kernel32.dll")] 
 public static extern IntPtr GetConsoleWindow(); 
@@ -70,40 +55,59 @@ public static extern bool ShowWindow(IntPtr hWnd, Int32 nCmdShow);
 ' 
 $ConsolePtr = [Console.Window]::GetConsoleWindow()
 [Console.Window]::ShowWindow($ConsolePtr, 0) | Out-Null
-#------------------------------------------------------------------------------#
+#------------------------------------------------------------------------------#>
  
 #--[ Runtime Variables ]----------------------------------------------------
+#--[ For Testing ]-------------
+$Script:Console = $true
+$Script:Debug = $true
+#------------------------------
 $ErrorActionPreference = "silentlycontinue"
-$Icon = [System.Drawing.SystemIcons]::Information
-$ScriptName = ($MyInvocation.MyCommand.Name).split(".")[0] 
-$ConfigFile = $PSScriptRoot+'\'+($ScriptName.Split("_")[0])+'.xml'
+
+
 #$DomainName = $env:USERDOMAIN      #--[ Pulls local domain as an alternate if the user leaves it out ]-------
 $UN = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name        #--[ Current User   ]--
 $DN = $UN.split("\")[0]                                                     #--[ Current Domain ]--    
 $SenderEmail = $UN.split("\")[1]+"@"+$DN+".org"                      #--[ Correct this for email domain, .ORG, .COM, etc ]--
 
 #--[ Functions ]--------------------------------------------------------------
-<#Function UpdateData ($ItemNum,$SiteList){  #--[ Adds checkbox selected locations to the email and log file ]--
-    $Message += "- "+($SiteList["$ItemNum"])[0]+"<br>"
-    If ((($SiteList["$ItemNum"])[1] -eq 0) -And ($LogZero)){  #--[ Forces locations with a zero milage to get logged ]--
-        $RunData += "`n"+(Get-Date).toShortDateString()+","+($SiteList["$ItemNum"])[0]+","+($SiteList["$ItemNum"])[1]
-    }ElseIf (($SiteList["$ItemNum"])[1] -gt 0){
-        $RunData += "`n"+(Get-Date).toShortDateString()+","+($SiteList["$ItemNum"])[0]+","+($SiteList["$ItemNum"])[1]
+
+Function GetConsoleHost ($ConfigFile){  #--[ Detect if we are using a script editor or the console ]--
+    Switch ($Host.Name){
+        'consolehost'{
+            $ConfigFile | Add-Member -MemberType NoteProperty -Name "ConsoleState" -Value $False -force
+            $ConfigFile | Add-Member -MemberType NoteProperty -Name "ConsoleMessage" -Value "PowerShell Console detected." -Force
+        }
+        'Windows PowerShell ISE Host'{
+            $ConfigFile | Add-Member -MemberType NoteProperty -Name "ConsoleState" -Value $True -force
+            $ConfigFile | Add-Member -MemberType NoteProperty -Name "ConsoleMessage" -Value "PowerShell ISE editor detected.  Console mode enabled." -Force
+        }
+        'PrimalScriptHostImplementation'{
+            $ConfigFile | Add-Member -MemberType NoteProperty -Name "ConsoleState" -Value $True -force
+            $ConfigFile | Add-Member -MemberType NoteProperty -Name "COnsoleMessage" -Value "PrimalScript or PowerShell Studio editor detected.  Console mode enabled." -Force
+        }
+        "Visual Studio Code Host" {
+            $ConfigFile | Add-Member -MemberType NoteProperty -Name "ConsoleState" -Value $True -force
+            $ConfigFile | Add-Member -MemberType NoteProperty -Name "ConsoleMessage" -Value "Visual Studio Code editor detected.  Console mode enabled. " -Force
+        }
     }
-}#>
-Function ReloadForm {
+    If ($ConfigFile.ConsoleState){
+        StatusMsg "Detected session running from an editor..." "Cyan" $ConfigFile
+    }
+    Return $ConfigFile
+}
+
+Function ReloadForm ($Form){
     $Form.Close()
     $Form.Dispose()
     ActivateForm
-    $Stop = $True
 }
 
-Function KillForm {
+Function KillForm ($Form) {
     $Form.Close()
     $Form.Dispose()
-    $Stop = $True
 }
-Function UpdateOutput {  #--[ Refreshes the infobox contents ]--
+Function UpdateOutput ($Form){  #--[ Refreshes the infobox contents ]--
     $InfoBox.update()
     $InfoBox.Select($InfoBox.Text.Length, 0)
     $InfoBox.ScrollToCaret()
@@ -117,21 +121,41 @@ Function IsThereText ($TargetBox){  #--[ Checks for text in the text entry box(e
   }
 }
 
-Function GetSiteDetails ($ConfigFile,$SiteCode){
+Function LoadConfig ($ConfigFile,$SiteCode){  #--[ Read and load configuration file ]-------------------------------------
+    [xml]$Config = Get-Content $ConfigFile  #--[ Read & Load XML ]--  
+    $XmlData = New-Object -TypeName psobject 
+    $Site = "Site"+($SiteCode.Split(",")[1])
+    $XmlData | Add-Member -Force -MemberType NoteProperty -Name "TargetTemplate" -Value $Config.Settings.TargetTemplate  
+    If ($SiteCode -eq ""){
+        $XmlData | Add-Member -Force -MemberType NoteProperty -Name "TitleText" -Value $Config.Settings.General.TitleText
+        $XmlData | Add-Member -Force -MemberType NoteProperty -Name "EmailRecipient" -Value $Config.Settings.General.EmailRecipient
+        $XmlData | Add-Member -Force -MemberType NoteProperty -Name "EmailSender" -Value $Config.Settings.General.EmailSender
+        $XmlData | Add-Member -Force -MemberType NoteProperty -Name "SmtpServer" -Value $Config.Settings.General.SmtpServer
+        $XmlData | Add-Member -Force -MemberType NoteProperty -Name "SmtpPort" -Value $Config.Settings.General.SmtpPort
+        $XmlData | Add-Member -Force -MemberType NoteProperty -Name "SiteList" -Value  $Config.Settings.Sites.Site
+    }Else{ 
+        $XmlData | Add-Member -Force -MemberType NoteProperty -Name "Location" -Value $Config.Settings.$Site.Location
+        $XmlData | Add-Member -Force -MemberType NoteProperty -Name "Name" -Value $Config.Settings.$Site.Name
+        $XmlData | Add-Member -Force -MemberType NoteProperty -Name "Address" -Value $Config.Settings.$Site.Address
+        $XmlData | Add-Member -Force -MemberType NoteProperty -Name "Contact" -Value $Config.Settings.$Site.Contact
+        $XmlData | Add-Member -Force -MemberType NoteProperty -Name "Email" -Value $Config.Settings.$Site.Email
+        $XmlData | Add-Member -Force -MemberType NoteProperty -Name "DeskPhone" -Value $Config.Settings.$Site.DeskPhone
+        $XmlData | Add-Member -Force -MemberType NoteProperty -Name "CellPhone" -Value $Config.Settings.$Site.CellPhone
+        $Counter = 1
+        $Template = $Config.Settings.TargetTemplate.Split(';')
+        $XmlData | Add-Member -Force -MemberType NoteProperty -Name "TargetCount" -Value $Template.Count
+        While ($Counter -le $Template.count){
+            $XmlData | Add-Member -Force -MemberType NoteProperty -Name "Target$Counter" -Value $Config.Settings.$Site.("Target$Counter")
+            $Counter++
+        }
+    }
+    Return $XmlData
+}
+
+<#Function GetSiteDetails ($ConfigFile,$SiteCode){
     $Site = "Site"+$SiteCode.Split(",")[1]
     [xml]$Config = Get-Content $ConfigFile           #--[ Read & Load XML ]--  
-
-
-    $Target = $Config.Settings.ResultTemplate.Split(';')
-#clear-host
-#write-host "Total Target IPs/Circuits: "$Target.count
-
-    ForEach ($x in $Target){
-    #    write-host "  Target: "$x
-    }
-    
-   
-
+    $Target = $Config.Settings.TargetTemplate.Split(';')
     $XmlData = New-Object -TypeName psobject 
     $XmlData | Add-Member -Force -MemberType NoteProperty -Name "Location" -Value $Config.Settings.$Site.Location
     $XmlData | Add-Member -Force -MemberType NoteProperty -Name "Name" -Value $Config.Settings.$Site.Name
@@ -141,104 +165,94 @@ Function GetSiteDetails ($ConfigFile,$SiteCode){
     $XmlData | Add-Member -Force -MemberType NoteProperty -Name "DeskPhone" -Value $Config.Settings.$Site.DeskPhone
     $XmlData | Add-Member -Force -MemberType NoteProperty -Name "CellPhone" -Value $Config.Settings.$Site.CellPhone
     $XmlData | Add-Member -Force -MemberType NoteProperty -Name "ResultCount" -Value $Target.$Count
-   # $XmlData | Add-Member -Force -MemberType NoteProperty -Name "ResultTemplate" -Value $Config.Settings.ResultTemplate
-   $XmlData | Add-Member -Force -MemberType NoteProperty -Name "Debug" -Value $true
-
-    
     $Counter = 0
-   While ($Counter -lt $Target.count){
-  #  write-host $Counter"    " -ForegroundColor red -NoNewline
-  #  write-host $Config.Settings.$Site.($Target[$Counter]) -ForegroundColor cyan
-     #   $XmlData | Add-Member -Force -MemberType NoteProperty -Name $Target[$Counter] -Value $Config.Settings.$Site.($Target[$Counter])
+    While ($Counter -lt $Target.count){
         $XmlData | Add-Member -Force -MemberType NoteProperty -Name "Target$Counter" -Value $Config.Settings.$Site.($Target[$Counter])
         $Counter++
     }
-
-<#
-    $XmlData | Add-Member -Force -MemberType NoteProperty -Name "Circuit1" -Value $Config.Settings.$Site.Circuit1
-    $XmlData | Add-Member -Force -MemberType NoteProperty -Name "Circuit2" -Value $Config.Settings.$Site.Circuit2
-    $XmlData | Add-Member -Force -MemberType NoteProperty -Name "LoopbackIP" -Value $Config.Settings.$Site.LoopbackIP
-    $XmlData | Add-Member -Force -MemberType NoteProperty -Name "GatewayIP" -Value $Config.Settings.$Site.GatewayIP
-    $XmlData | Add-Member -Force -MemberType NoteProperty -Name "EC1PrivateIP" -Value $Config.Settings.$Site.EC1PrivateIP
-    $XmlData | Add-Member -Force -MemberType NoteProperty -Name "EC1PublicIP" -Value $Config.Settings.$Site.EC1PublicIP
-    $XmlData | Add-Member -Force -MemberType NoteProperty -Name "EC2PrivateIP" -Value $Config.Settings.$Site.EC2PrivateIP    
-    $XmlData | Add-Member -Force -MemberType NoteProperty -Name "EC2PublicIP" -Value $Config.Settings.$Site.EC2PublicIP    
-    #>
-    
- 
     Return $XmlData
-}
+}#>
 
 Function Inspect ($IPAddress){
-    $PingIt = test-connection -ComputerName $IPAddress -count 1 -erroraction SilentlyContinue #-asjob  | Wait-Job -Timeout 1 | receive-job  
+    $PingIt = test-connection -ComputerName $IPAddress -count 1 -erroraction SilentlyContinue #-asjob  | Wait-Job -Timeout 1 | receive-job 
+   # $PingIt2 = Test-NetConnection -ComputerName $IPAddress -InformationLevel Detailed
+   # write-host $PingIt2
+
+
     If ($PingIt ){
         $Result = $IPAddress+";Success"
     }Else{
-        $Result = $IPAddress+";- FAILED -"
+        $Result = $IPAddress+";FAILED"
     }
     Return $Result
 }
 
-Function Inspect2 ($IPAddress,$Line,$Form){
-#Inspect $SiteDetails.GatewayIP $Line2Center.Text $Form
-$PingIt = test-connection -ComputerName $IPAddress -count 1 -erroraction SilentlyContinue #-asjob  | Wait-Job -Timeout 1 | receive-job  
-$Form.$line.Text = "- Working -"
-
-If ($PingIt ){
-    $Form.$line.Text = "Success"
-    $Result = $IPAddress+";Success"
-}Else{
-    $Form.$line.Text = "-- FAILED --"
-    $Result = $IPAddress+";- FAILED -"
-}
-Return $Result
-}
-
-Function StatusMsg ($Msg, $Color){
+Function StatusMsg ($Msg, $Color, $ExtOption){
     If ($Null -eq $Color){
         $Color = "Magenta"
     }
-    If ($Script:Debug -or $Script:Console){Write-Host "-- Script Status: $Msg" -ForegroundColor $Color}
+    Write-Host "-- Script Status: $Msg" -ForegroundColor $Color
     $Msg = ""
 }
 
-#==[ End of Functions ]=====================================================
+#==[ End of Functions ]=======================================================
+#=============================================================================
+#=[ Begin Processing ]========================================================
 
-#--[ Read and load configuration file ]-------------------------------------
-if (!(Test-Path $ConfigFile)){                       #--[ Error out if configuration file doesn't exist ]--
-    StatusMsg "MISSING CONFIG FILE.  Script aborted." " Red"
-    break;break;break
-}else{
-    $ErrorActionPreference = "stop"
-    [xml]$Configuration = Get-Content $ConfigFile  #--[ Read & Load XML ]--    
-    $TitleText = $Configuration.Settings.General.TitleText
-    $SmtpServer = $Configuration.Settings.General.SmtpServer
-    $SmtpPort = $Configuration.Settings.General.SmtpPort
-    $RecipientEmail = $Configuration.Settings.General.RecipientEmail
-    $ResultTemplate = $Configuration.Settings.ResultTemplate
-   
+#--[ Load external XML options file ]-----------------------------------------
+$ConfigFile = $PSScriptRoot+"\"+($MyInvocation.MyCommand.Name.Split("_")[0]).Split(".")[0]+".xml"
+
+If (Test-Path -Path $ConfigFile -PathType Leaf){                       #--[ Error out if configuration file doesn't exist ]--
+    $ExtOption = LoadConfig $ConfigFile ""
+    StatusMsg "Loading external config file..." "Magenta" $ExtOption
     $SiteList = [Ordered]@{}  
     $Index = 1
-    ForEach($Site in $Configuration.Settings.Sites.site){
+    ForEach($Site in $ExtOption.Sitelist){
         $SiteList.Add($Index, @($Site))
         $Index++
     }
-    #--[ Email Recipient Options ]--------------------------------------------------
-    $Recipients = @()   #--[ List of recipients in case a group can't be used ]--
-    $Recipients +="maziekc@ah.org"
-    If (!($Script:Debug)){     #--[ Use to block remaining recipients for test mode routing to sender ]--
-        ForEach($Recipient in $Configuration.Settings.Recipients.Recipient){
-            $Recipients +=$Recipient
-        }
+    If ($Debug){  
+        $ExtOption | Add-Member -Force -MemberType NoteProperty -Name "Debug" -Value $true   
     }
+}Else{
+    StatusMsg "MISSING XML CONFIG FILE.  File is required.  Script aborted..." " Red" $True
+    $Message = (
+'--[ External XML config file example ]-----------------------------------
+--[ To be named the same as the script and located in the same folder as the script ]--
+
+<?xml version="1.0" encoding="utf-8"?>
+<Settings>
+<General>
+    <SmtpServer>mailserver.company.org</SmtpServer>
+    <SmtpPort>25</SmtpPort>
+    <RecipientEmail>InformationTechnology@company.org</RecipientEmail>
+    <SourcePath>C:\folder</SourcePath>
+    <ExcelSourceFile>+NetworkedDevice-Master-Inventory.xlsx</ExcelSourceFile>
+    <ExcelWorkingCopy>NetworkedDevice-Master-Inventory.xlsx</ExcelWorkingCopy>
+    <Domain>company.org</Domain>
+</General>
+<Credentials>
+    <PasswordFile>c:\AESPass.txt</PasswordFile>
+    <KeyFile>c:\AESKey.txt</KeyFile>
+    <WAPUser>admin</WAPUser>
+    <WAPPass>wappass</WAPPass>
+    <AltUser>user1</AltUser>
+    <AltPass>userpass1</AltPass>
+</Credentials>    
+<Recipients>
+    <Recipient>me@company.org</Recipient>
+    <Recipient>you@company.org</Recipient>
+    <Recipient>them@company.org</Recipient>
+</Recipients>
+</Settings> ')
+Write-host $Message -ForegroundColor Yellow
 }
 
-
 #--[ Prep GUI ]------------------------------------------------------------------
-
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 [System.Windows.Forms.Application]::EnableVisualStyles()
+$Icon = [System.Drawing.SystemIcons]::Information
 
 #$ScreenSize = (Get-WmiObject -Class Win32_DesktopMonitor | Select-Object ScreenWidth,ScreenHeight)  --[ Depricated ]--
 $ScreenSize = (Get-CimInstance -Class Win32_DesktopMonitor | Select-Object ScreenWidth,ScreenHeight)
@@ -260,9 +274,9 @@ If ($ScreenSize.Count -gt 1){  #--[ Detect multiple monitors ]--
 #--[ Define Form ]--------------------------------------------------------------
 [int]$FormWidth = 727
 If ($SiteList.Count/2 -is [int]){
-    [int]$FormHeight = ((($SiteList.Count/2)*20)+255)   #--[ Dynamically Created Variable for Box Size (Even count) ]--
+    [int]$FormHeight = ((($ExtOption.SiteList.Count/2)*20)+255)   #--[ Dynamically Created Variable for Box Size (Even count) ]--
 }Else{
-    [int]$FormHeight = ((($SiteList.Count/2)*23)+255)   #--[ Dynamically Created Variable for Box Size (Odd count) ]--
+    [int]$FormHeight = ((($ExtOption.SiteList.Count/2)*23)+255)   #--[ Dynamically Created Variable for Box Size (Odd count) ]--
 }
 
 [int]$FormHCenter = ($FormWidth / 2)   # 170 Horizontal center point
@@ -277,7 +291,7 @@ $Form.AutoSize = $False
 $Notify = New-Object system.windows.forms.notifyicon
 $Notify.icon = $Icon              #--[ NOTE: Available tooltip icons are = warning, info, error, and none
 $Notify.visible = $true
-$Form.Text = "$ScriptName v$ScriptVer"
+$Form.Text = "Script Version: $ScriptName v$ScriptVer"
 $Form.StartPosition = "CenterScreen"
 $Form.KeyPreview = $true
 $Form.Add_KeyDown({if ($_.KeyCode -eq "Escape"){$Form.Close();$Stop = $true}})
@@ -291,7 +305,7 @@ $FormLabelBox.Font = $ButtonFont
 $FormLabelBox.Location = new-object System.Drawing.Size(($FormHCenter-($BoxLength/2)-15),$LineLoc)
 $FormLabelBox.size = new-object System.Drawing.Size($BoxLength,$ButtonHeight)
 $FormLabelBox.TextAlign = 2 
-$FormLabelBox.Text = $TitleText
+$FormLabelBox.Text = $ExtOption.TitleText
 $Form.Controls.Add($FormLabelBox)
 
 #--[ CLOSE Button ]------------------------------------------------------------------------
@@ -303,7 +317,7 @@ $CloseButton.Size = new-object System.Drawing.Size($BoxLength,$ButtonHeight)
 $CloseButton.TabIndex = 1
 $CloseButton.Text = "Cancel/Close"
 $CloseButton.Add_Click({
-    KillForm
+    KillForm $Form
 })
 $Form.Controls.Add($CloseButton)
 
@@ -311,16 +325,14 @@ $Form.Controls.Add($CloseButton)
 #$BoxLength = 673  #--[ NOTE: This box size sets the form width while form autosize is enabled ]--
 $BoxLength = 400
 $LineLoc = 27
-$UserCredLabel = New-Object System.Windows.Forms.Label 
-$UserCredLabel.Location = New-Object System.Drawing.Point(($FormHCenter-($BoxLength/2)-11),$LineLoc)
-$UserCredLabel.Size = New-Object System.Drawing.Size($BoxLength,$TextHeight) 
-$UserCredLabel.ForeColor = "DarkCyan"
-$UserCredLabel.Font = $ButtonFont
-$UserCredLabel.Text = "Select a site below to run connectivity tests against:"
-$UserCredLabel.TextAlign = 2 
-$Form.Controls.Add($UserCredLabel) 
-
-
+$InfoBox = New-Object System.Windows.Forms.Label 
+$InfoBox.Location = New-Object System.Drawing.Point(($FormHCenter-($BoxLength/2)-11),$LineLoc)
+$InfoBox.Size = New-Object System.Drawing.Size($BoxLength,$TextHeight) 
+$InfoBox.ForeColor = "DarkCyan"
+$InfoBox.Font = $ButtonFont
+$InfoBox.Text = "Select a site below to run connectivity tests against:"
+$InfoBox.TextAlign = 2 
+$Form.Controls.Add($InfoBox) 
 
 #==[ Define Site Information Group ]==================================================    
 
@@ -341,7 +353,7 @@ $BoxLength = 544
 $AddressBox = New-Object System.Windows.Forms.TextBox
 $AddressBox.Location = New-Object System.Drawing.Size((($FormHCenter-($BoxLength/2))+30),$LineLoc)
 $AddressBox.Size = New-Object System.Drawing.Size(($BoxLength-9),$TextHeight) 
-$AddressBox.Text = ""
+$AddressBox.Text = "-address-"
 $AddressBox.Enabled = $True
 $AddressBox.ReadOnly = $True
 $AddressBox.TextAlign = 2
@@ -402,7 +414,7 @@ $BoxLeft = $BoxLeft+($BoxLength+8)
 $CellPhoneBox = New-Object System.Windows.Forms.TextBox
 $CellPhoneBox.Location = New-Object System.Drawing.Point($BoxLeft,$LineLoc)
 $CellPhoneBox.Size = New-Object System.Drawing.Size($BoxLength,$TextHeight) 
-$CellPhoneBox.Text = "-phone2-"
+$CellPhoneBox.Text = "-phone 2-"
 $CellPhoneBox.Enabled = $True
 $CellPhoneBox.ReadOnly = $True
 $CellPhoneBox.TextAlign = 2
@@ -420,7 +432,7 @@ $Form.controls.add($LocationGroupBox)
 #==[ Define Initial Result Area Group ]=================================================
 $ResultLines = @{}
 $Counter = 1
-ForEach ($Item in $ResultTemplate.Split(';')){
+ForEach ($Item in $ExtOption.TargetTemplate.Split(';')){
     $ResultLines.Add($Counter, $Item)
     $Counter++
 }
@@ -487,7 +499,7 @@ While ($Counter -lt $ResultLines.Count){
 }
 
 $ResultGroupBox = New-Object System.Windows.Forms.GroupBox
-$ResultGroupBox.Location = New-Object System.Drawing.Size(($FormHCenter-14),123) #$LineLoc)
+$ResultGroupBox.Location = New-Object System.Drawing.Size(($FormHCenter-14),123) 
 $ResultGroupBox.text = "Results:"
 $ResultGroupBox.AutoSize = $true
 $ResultGroupBox.Controls.AddRange($Range)
@@ -522,91 +534,35 @@ While ($SiteList.Count -gt $Count) {
     $RadBox.Enabled = $true 
     $RadBox.Add_Click({
         $ProcessButton.Enabled = $true
-
-        $Script:SiteDetails = GetSiteDetails $ConfigFile $This.text
-        
+        $Script:SiteDetails = LoadConfig $ConfigFile $This.text
         $Text = "You have selected: "+$SiteDetails.Name
-        $UserCredLabel.Text= $Text
+        $InfoBox.Text = $Text
         $AddressBox.Text = $SiteDetails.Address
-        $UserCredLabel.ForeColor = "DarkGreen"
+        $InfoBox.ForeColor = "DarkGreen"
         $ContactTextBox.Text = $SiteDetails.Contact
         $CellPhoneBox.Text = $SiteDetails.CellPhone
         $DeskPhoneBox.Text = $SiteDetails.DeskPhone
         $EmailBox.Text = $SiteDetails.Email
 
-
-#Get-Variable | Out-String
-#Get-Variable | ForEach-Object { "Name : {0}`r`nValue: {1}`r`n" -f $_.Name,$_.Value }
-
-#Get-Variable | Where-Object {$_.Name -like ('*Line*')} 
-
-        $ErrorActionPreference = "stop" #ilentlycontinue"
-        clear-host
-        $Counter = 1
-          Write-Host  "-----------------------------------------"
-        Foreach ($Property in $SiteDetails.PSObject.Properties){ #} | where {$_.Name -like "Target*"}){
-            #Write-Host "$Counter   $($Property.Name): $($Property.Value) " -ForegroundColor Yellow
-
-            #New-Variable -Name "Line"+$Counter+"Center" -Value 98033
-            If ($Property.Name -like "*Target*"){
-              
-                Write-Host "`ncounter : "$Counter -ForegroundColor Yellow
-                write-host "name    : "$($Property.Name) -ForegroundColor Yellow
-                write-host "value   : " $($Property.Value)  -ForegroundColor Yellow
-                
-                               
-                Get-Variable |%{ "Name : {0}`r`nValue: {1}`r`n" -f $_.Name,$_.Value }
-                $x = 'Line'+($Counter-9)+'Center'
-                $z = (Get-Variable  | Where-Object {$_.Name -like "*$x*"} ) #| set-variable $_.text = $Property.Value
-                #write-host ""#$z
-                write-host "variable  : "$z.name -ForegroundColor cyan
-                write-host "value     : "$z.Value -ForegroundColor cyan
-                set-variable -name $($z.Name) -value $Property.value -force -PassThru
-#$z.GetType()
-
-
-
-#write-host $z.text # = $Property.Value
-
-              #  $(($Line+$Counter+"Center")).Text = $SiteDetails.LoopbackIP 
-              #  $(($Line+$Counter+"Right")).Text = "--"
-
-
-
-           <# Switch ($($Property.Name)){
-                "LoopbackIP" {
-                    $Line1Center.Text = $SiteDetails.LoopbackIP 
-                    $Line1Right.Text = "--"
+        $Counter = 0
+        $Marker = $ExtOption.TargetTemplate.Split(";").count
+        Foreach ($Target in $SiteDetails.PSObject.Properties){  #--[ Cycle through XML targets for site ]--
+            If ($Target.Name -like "*Target*"){                
+                #--[ Blank right boxes ]--
+                $Rline = 'Line'+($Counter-$Marker)+'Right'
+                $Rbox = (Get-Variable  | Where-Object {$_.Name -like "*$Rline*"} ) 
+                $Rbox.value.text = "" 
+                #--[ Populate center box with targets ]--              
+                $Cline = 'Line'+($Counter-$Marker)+'Center'
+                $Cbox = (Get-Variable  | Where-Object {$_.Name -like "*$Cline*"} ) 
+                $Cbox.value.text = $Target.value                
+                If ($ExtOption.Debug){  #--[ Optional debugging output for form layout ]--
+                    Write-Host "`nCounter        : "($Counter-($ExtOption.TargetCount)) -ForegroundColor Yellow
+                    write-host "Target Name    : "$($Target.Name) -ForegroundColor Yellow
+                    write-host "Target Value   : "$($Target.Value)  -ForegroundColor Yellow  
+                    write-host "Box Name       : "$Cbox.name -ForegroundColor cyan
+                    write-host "Box Value      : "$Cbox.Value.text -ForegroundColor cyan
                 }
-                "GatewayIP"{
-                    $Line2Center.Text = $SiteDetails.GatewayIP
-                    $Line2Right.Text = "--"
-                }
-                "Circuit1"{
-                    $Line3Center.Text = $SiteDetails.Circuit1
-                    $Line3Right.Text = "--"
-                }
-                "EC1PrivateIP"{
-                    $Line4Center.Text = $SiteDetails.EC1PrivateIP
-                    $Line4Right.Text = "--"
-                }
-                "EC1PublicIP"{
-                    $Line5Center.Text = $SiteDetails.EC1PublicIP
-                    $Line5Right.Text = "--"
-                }
-                "Circuit2"{
-                    $Line6Center.Text = $SiteDetails.Circuit2
-                    $Line6Right.Text = "--"
-                }
-                "EC2PrivateIP"{
-                    $Line7Center.Text = $SiteDetails.EC2PrivateIP      
-                    $Line7Right.Text = "--"
-                }
-                "EC2PublicIP"{
-                    $Line8Center.Text = $SiteDetails.EC2PublicIP
-                    $Line8Right.Text = "--"
-                }
-            }#>
             }
             $Counter++
         }
@@ -615,45 +571,41 @@ While ($SiteList.Count -gt $Count) {
     $Range += $RadBox
 }
 $SiteGroupBox = New-Object System.Windows.Forms.GroupBox
-$SiteGroupBox.Location = New-Object System.Drawing.Size(($FormHCenter-344),123) #$LineLoc)
+$SiteGroupBox.Location = New-Object System.Drawing.Size(($FormHCenter-344),123) 
 $SiteGroupBox.text = "Location List:"
 $SiteGroupBox.AutoSize = $true
 $SiteGroupBox.Controls.AddRange($Range)
 $form.controls.add($SiteGroupBox)
 
-
-
-#--[ Final Form Size Determination ]--------------------------------------
+#--[ Final Form Size Dynamic Determination ]--------------------------------------
 $Form.AutoSize = $False
-$Form.autoscale = $false
+$Form.AutoScale = $False
 
 If ([int]$ResultGroupBox.Size.Height -ge [int]$SiteGroupBox.Size.Height){
-    If ($ExtOption.Debug){
-        write-host "`nresult box is larger    " 
-        write-host "`nresult box size    " $ResultGroupBox.Size
-        write-host  "result count      " $ResultLines.Count
+    If ($ExtOption.Debug){  #--[ Optional debugging output for form dimensioning ]--
+        write-host "`nResult Box is Larger    "  -ForegroundColor Green
+        write-host "Result Box Size    " $ResultGroupBox.Size -ForegroundColor Green
+        write-host "Result Count       " $ResultLines.Count -ForegroundColor Green
     }
     $FormHeight = ($ResultGroupBox.Size.Height+180)
 }Else{    
-    If ($ExtOption.Debug){
-        write-host "`nsite box is larger    " 
-        write-host "`nsite box size      " $SiteGroupBox.Size
-        write-host  "site count        " $SiteList.Count
+    If ($ExtOption.Debug){  #--[ Optional debugging output for form dimensioning ]--
+        write-host "`nSite Box is Larger    "  -ForegroundColor Green
+        write-host "Site Box Size      " $SiteGroupBox.Size -ForegroundColor Green
+        write-host  "Site Count        " $SiteList.Count -ForegroundColor Green
     }
     $FormHeight = ($SiteGroupBox.Size.Height+180)
 }
 
-If ($ExtOption.Debug){
-    write-host "`nform size          " $Form.Size
-    write-host "form bottom        " $Form.Bottom
+If ($ExtOption.Debug){  #--[ Optional debugging output for form dimensioning ]--
+    write-host "`nForm size          " $Form.Size -ForegroundColor Magenta
+    write-host "Form bottom        " $Form.Bottom -ForegroundColor Magenta
 }
 $Form.minimumSize = New-Object System.Drawing.Size($FormWidth,($FormHeight))
 $Form.maximumSize = New-Object System.Drawing.Size($FormWidth,($FormHeight))
 #----------------------------------------------------------------------------
 
-
-#--[ EXECUTE Button ]------------------------------------------------------------------------
-#$LineLoc = 11  --[ Set at top of form definition at cancel box ]--
+#--[ EXECUTE Button ]--------------------------------------------------------------
 $ProcessButton = new-object System.Windows.Forms.Button
 $ProcessButton.Location = new-object System.Drawing.Size(($FormHCenter-($BoxLength/2)+245),$ButtonLineLoc)
 $ProcessButton.Size = new-object System.Drawing.Size($BoxLength,$ButtonHeight)
@@ -661,110 +613,44 @@ $ProcessButton.Enabled = $false
 $ProcessButton.Text = "Execute"
 $ProcessButton.TabIndex = 2
 $ProcessButton.Add_Click({
-Foreach ($Property in $SiteDetails.PSObject.Properties){
-    If ($ExtOption.Debug){
-        Write-Host "$($Property.Name): $($Property.Value)" -ForegroundColor Cyan
+    $Counter = 1
+    Foreach ($Property in $SiteDetails.PSObject.Properties){
+        If ($Property.Name -like "*Target*"){
+            If ($ExtOption.Debug){  #--[ Optional debugging output for form dimensioning ]--
+                Write-Host "`nCounter        : "$Counter -ForegroundColor Yellow
+                write-host "Target Name    : "$($Property.Name) -ForegroundColor Yellow
+                write-host "Target Value   : " $($Property.Value)  -ForegroundColor Yellow
+            }
+            $Rline = 'Line'+($Counter-9)+'Right'
+            $Lline = 'Line'+($Counter-9)+'Left'
+            $Rbox = (Get-Variable  | Where-Object {$_.Name -like "*$Rline*"} )
+            $Lbox = (Get-Variable  | Where-Object {$_.Name -like "*$Lline*"} )
+            If ($Lbox.value.Text -like "*circuit*"){
+                #--[ Skip this, box is 2 wide circuit ID ]--
+            }Else{
+                $Rbox.value.text = "--Testing --"
+                $Rbox.value.BackColor = $Form.BackColor
+                $Result = Inspect $Property.value
+                If ($Result -like "*FAIL*"){
+                    #$z.value.Font = $ButtonFont
+                    $Rbox.value.ForeColor = "Red"
+                    $Rbox.value.text = "NO RESPONSE"
+                }Else{
+                    $Rbox.value.ForeColor = "Green"
+                    $Rbox.value.text = "- ONLINE -"
+                }
+                If ($ExtOption.Debug){  #--[ Optional debugging output for form dimensioning ]--
+                    write-host "Right Box Name  : "$Rbox.name -ForegroundColor cyan
+                    write-host "Right Box Value : "$Rbox.Value -ForegroundColor cyan
+                }
+            }
+        }
+    $Counter++
     }
-    Switch ($($Property.Name)){
-        "LoopbackIP" {
-            $Line1Right.Text = "- Working -"
-            $Result = Inspect $SiteDetails.LoopbackIP  
-            $Line1Right.BackColor = $Form.BackColor
-            $Line1Right.Text = $Result.Split(";")[0]
-            If ($Result -like "*FAIL*"){
-                $Line1Right.Font = $ButtonFont
-                $Line1Right.ForeColor = 'Red'
-                $Line1Right.Text = "- OFFLINE -"
-            }Else{
-                $Line1Right.ForeColor = 'Green'
-                $Line1Right.Text = "- ONLINE -"
-            }
-        }
-        "GatewayIP"{
-            $Line2Right.Text = "- Working -"
-            $Result = Inspect $SiteDetails.GatewayIP  
-            $Line2Right.BackColor = $Form.BackColor
-            $Line2Right.Text = $Result.Split(";")[0]
-            If ($Result -like "*FAIL*"){
-                $Line2Right.Font = $ButtonFont
-                $Line2Right.ForeColor = 'Red'
-                $Line2Right.Text = "- OFFLINE -"
-            }Else{
-                $Line2Right.ForeColor = 'Green'
-                $Line2Right.Text = "- ONLINE -"
-            }
-        }
-        "Circuit1"{
-#            Inspect $SiteDetails.GatewayIP $Line2Center.Text $Form
-           # $Line3Center.Text = $SiteDetails.Circuit1
-            #$Result = Inspect $SiteDetails.Circuit1
-        }
-        "EC1PrivateIP"{
-            $Line4Right.Text = "- Working -"
-            $Result = Inspect $SiteDetails.EC1PrivateIP
-            $Line4Right.BackColor = $Form.BackColor
-            $Line4Right.Text = $Result.Split(";")[0]
-            If ($Result -like "*FAIL*"){
-                $Line4Right.Font = $ButtonFont
-                $Line4Right.ForeColor = 'Red'
-                $Line4Right.Text = "- OFFLINE -"
-            }Else{
-                $Line4Right.ForeColor = 'Green'
-                $Line4Right.Text = "- ONLINE -"
-            }
-        }
-        "EC1PublicIP"{
-            $Line5Right.Text = "- Working -"        
-            $Result = Inspect $SiteDetails.EC1PublicIP
-            $Line5Right.BackColor = $Form.BackColor
-            $Line5Right.Text = $Result.Split(";")[0]
-            If ($Result -like "*FAIL*"){
-                $Line5Right.Font = $ButtonFont
-                $Line5Right.ForeColor = 'Red'
-                $Line5Right.Text = "- OFFLINE -"
-            }Else{
-                $Line5Right.ForeColor = 'Green'
-                $Line5Right.Text = "- ONLINE -"
-            }
-        }
-        "Circuit2"{
-            #$Line6Center.Text = $SiteDetails.Circuit2
-            #$Result = Inspect $SiteDetails.Circuit2
-        }
-        "EC2PrivateIP"{
-            $Line7Right.Text = "- Working -"            
-            $Result = Inspect $SiteDetails.EC2PrivateIP
-            $Line7Right.BackColor = $Form.BackColor
-            If ($Result -like "*FAIL*"){
-                $Line7Right.Font = $ButtonFont
-                $Line7Right.ForeColor = 'Red'
-                $Line7Right.Text = "- OFFLINE -"
-            }Else{
-                $Line7Right.ForeColor = 'Green'
-                $Line7Right.Text = "- ONLINE -"
-            }     
-        }
-        "EC2PublicIP"{
-            $Line8Right.Text = "- Working -"            
-            $Result = Inspect $SiteDetails.EC2PublicIP
-            $Line8Right.BackColor = $Form.BackColor
-            $Line8Right.Text = $Result.Split(";")[0]
-            If ($Result -like "*FAIL*"){
-               # $Line8Right.Font = $ButtonFont
-                $Line8Right.ForeColor = 'Red'
-                $Line8Right.Text = "- OFFLINE -"
-            }Else{
-                $Line8Right.ForeColor = 'Green'
-                $Line8Right.Text = "- ONLINE -"
-            }
-        }
-    }
-}
+    Start-Sleep -millisec 2
 
 })
 $Form.Controls.Add($ProcessButton)
-
-
 
 #--[ Open Form ]-------------------------------------------------------------
 $Form.topmost = $true
