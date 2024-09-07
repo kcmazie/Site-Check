@@ -12,7 +12,9 @@ This script is designed to be a quick-check of a list of locations (sites) and n
 
 My initial desire was to have a tool that when a WAN circuit outage alert was received all primary addresses at the site could be rapidly checked.  I wanted it simple, quick, and easy, as well as versitile enough that I could alter the lists with minimal effort, plus in order to share it could contain no proprietary data.
 
-By itself the script is completely generic, there are no default settings.  Configuration is managed via a companion XML config file which must be located in the same folder and named the same as as the script (but with a ".xml" extension).  If the config file is NOT detected a sample XML file will be created on first run that must be edited before use.  The sample is shown in the screen shots below.
+By itself the script is completely generic, there are no default settings.  Configuration is managed via a companion XML config file which must be located in the same folder and named the same as as the script (but obviously with a ".xml" extension).  If the config file is NOT detected a sample XML file will be created on first run that must be edited before use.  Data from the sample is shown in the screen shots below.  
+
+The config file has fields to contain technical contact info as well as the location address for each site.  It also has the ability to list circuit IDs in the target list for reference.
 
 The script dynamically adjusts it's size depending on the number of sites and/or targets in the config file up to a limit after which it will exceed the screen size.  
 
@@ -45,6 +47,11 @@ Command line options for testing:
   
 ### $${\color{grey}Warnings:}$$ 
 * None 
+
+### $${\color{grey}Enhancements:}$$ 
+Some possible future enhancements are:
+* Ability to email the results
+* Still need to add some error checking when IP addresses are missing or misspelled.
 
 ### $${\color{grey}Legal:}$$ 
 Public Domain. Modify and redistribute freely. No rights reserved. 
