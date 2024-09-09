@@ -39,7 +39,7 @@ The script takes virtually all configuration from the companion XML file.  As pr
 
 The XML file broken down into 4 sections each of which falls under the section heading of "<Settings>".
 
-   ### $${\color{darkcyan}"General"  Section:}$$
+#### $${\color{darkcyan}"General"  Section:}$$
    This section sets the visible script title and email settings for future use.
    ```xml
         <General>
@@ -50,7 +50,7 @@ The XML file broken down into 4 sections each of which falls under the section h
             <EmailSender>Not Used</EmailSender>
         </General>
    ```
-   ### $${\color{darkcyan}"TargetTemplate"  Section:}$$
+#### $${\color{darkcyan}"TargetTemplate"  Section:}$$
    This section formats names and order of the labels in the results on the right side of the GUI.  There is also a short section explenation.
    ```xml
         <TargetTemplate>LoopbackIP;GatewayIP;Circuit1;PrivateIP1;PublicIP1;Circuit2;PrivateIP2;PublicIP2</TargetTemplate> 
@@ -65,7 +65,7 @@ The XML file broken down into 4 sections each of which falls under the section h
             <Target8>Public IP 2</Target8>
             -->
    ```
-   ### $${\color{darkcyan}"Sites"  Section:}$$
+ #### $${\color{darkcyan}"Sites"  Section:}$$
    This section is a list of sites.  Each site listed should have a dedicated section defining it's specifics.  The number after the comma identifies the section of the XML for that site.
    ```xml
         <Sites>
@@ -83,7 +83,7 @@ The XML file broken down into 4 sections each of which falls under the section h
         </Sites>
    ```
 
-   ### $${\color{darkcyan}"SiteX"  Section:}$$
+#### $${\color{darkcyan}"SiteX"  Section:}$$
    Note that the number in the site header corresponds to the aforementioned site ID.  This section has site specific info and there should be one of these for each site listed in the "Sites" section.  The "TargetX" lines must match the order and number of items in the "TargetTemplate" section.  If the template lists a circuit ID, then that target should contain circuit info noit an IP.
    ```xml
         <Site1>
