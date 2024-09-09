@@ -1,3 +1,6 @@
+<!---
+<meta name="google-site-verification" content="SiI2B_QvkFxrKW8YNvNf7w7gTIhzZsP9-yemxArYWwI" /> 
+-->
 [![Minimum Supported PowerShell Version][powershell-minimum]][powershell-github]
 
 [powershell-minimum]: https://img.shields.io/badge/PowerShell-5.1+-blue.svg
