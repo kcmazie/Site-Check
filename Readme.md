@@ -31,6 +31,77 @@ Command line options for testing:
 * "-console $true" will enable local console echo for troubleshooting
 * "-debug $true" will only email to the first recipient on the list
 
+## $${\color{grey}Configuration:}$$ 
+The script takes virtually all configuration from the companion XML file.  As previously noted the file must exist and if not found  one will be created with basic settings.
+
+The XML file broken down into 4 sections each of which falls under the section heading of "<Settings>".
+
+   ### $${\color{darkcyan}"General"  Section:}$$
+   This section sets the visible script title and email settings for future use.
+   ```xml
+        <General>
+            <TitleText>Enterprise Network Engineering "Quick" Site Check</TitleText>            
+            <SmtpServer>Not Used</SmtpServer>
+            <SmtpPort>25</SmtpPort>
+            <EmailRecipient>Not Used</EmailRecipient>
+            <EmailSender>Not Used</EmailSender>
+        </General>
+   ```
+   ### $${\color{darkcyan}"TargetTemplate"  Section:}$$
+   This section formats names and order of the labels in the results on the right side of the GUI.  There is also a short section explenation.
+   ```xml
+        <TargetTemplate>LoopbackIP;GatewayIP;Circuit1;PrivateIP1;PublicIP1;Circuit2;PrivateIP2;PublicIP2</TargetTemplate> 
+            <!--  NOTE: Target Template MUST match the order and number of targets in each site section. Below is an EXAMPLE. 
+            <Target1>Loopback IP</Target1>
+            <Target2>Gateway IP</Target2>
+            <Target3>Circuit 1</Target3> 
+            <Target4>Private IP 1</Target4>
+            <Target5>Public IP 1</Target5>
+            <Target6>Circuit 2</Target6>
+            <Target7>Private IP 2</Target7>
+            <Target8>Public IP 2</Target8>
+            -->
+   ```
+   ### $${\color{darkcyan}"Sites"  Section:}$$
+   This section is a list of sites.  Each site listed should have a dedicated section defining it's specifics.  The number after the comma identifies the section of the XML for that site.
+   ```xml
+        <Sites>
+        	<!-- Site ID number must match site tag below, i.e "sitename,1" and "<Site1>" -->
+            <site>New York,1</site>
+            <site>San Francisco,2</site>
+            <site>Los Angeles,3</site> 
+            <site>Denver,4</site>
+            <site>San Jose,5</site>
+            <site>Seattle,6</site>
+            <site>Atlanta,7</site>
+            <site>Chicago,8</site>
+            <site>London,9</site>
+            <site>Paris,10</site> 
+        </Sites>
+   ```
+
+   ### $${\color{darkcyan}"SiteX"  Section:}$$
+   Note that the number in the site header corresponds to the aforementioned site ID.  This section has site specific info and there should be one of these for each site listed in the "Sites" section.  The "TargetX" lines must match the order and number of items in the "TargetTemplate" section.  If the template lists a circuit ID, then that target should contain circuit info noit an IP.
+   ```xml
+        <Site1>
+            <Designation>Site-01</Designation>
+            <Name>New York Office</Name>
+            <Address>123 Sesame Street, New York NY 12345</Address>
+            <Contact>Joe Tech</Contact>
+            <Email>techdude@123.com</Email>
+            <CellPhone>123-456-7890</CellPhone>
+            <DeskPhone>234-567-8901</DeskPhone>
+            <Target1>10.0.1.1</Target1>
+            <Target2>10.1.1.1</Target2>
+            <Target3>Comcast: 45.YADA.12345..XYZL</Target3> 
+            <Target4>10.2.2.7</Target4>
+            <Target5>10.2.2.6</Target5>
+            <Target6>ATT: 50ASDF666333PT</Target6>
+            <Target7>10.3.3.7</Target7>
+            <Target8>10.3.3.6</Target8>
+        </Site1>
+   ```
+   
 ### $${\color{grey}Screenshots:}$$ 
    This is the initial GUI.
    
