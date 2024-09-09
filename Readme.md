@@ -1,5 +1,5 @@
 <!---
-<meta name="google-site-verification" content="SiI2B_QvkFxrKW8YNvNf7w7gTIhzZsP9-yemxArYWwI" /> 
+<meta name="google-site-verification" content="SiI2B_QvkFxrKW8YNvNf7w7gTIhzZsP9-yemxArYWwI" />
 -->
 [![Minimum Supported PowerShell Version][powershell-minimum]][powershell-github]
 
