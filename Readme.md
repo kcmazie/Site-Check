@@ -2,6 +2,7 @@
 <meta name="google-site-verification" content="SiI2B_QvkFxrKW8YNvNf7w7gTIhzZsP9-yemxArYWwI" />
 -->
 [![Minimum Supported PowerShell Version][powershell-minimum]][powershell-github]
+[![License: MIT](https://cdn.prod.website-files.com/5e0f1144930a8bc8aace526c/65dd9eb5aaca434fac4f1c34_License-MIT-blue.svg)](/LICENSE)
 
 [powershell-minimum]: https://img.shields.io/badge/PowerShell-5.1+-blue.svg
 [powershell-github]:  https://github.com/PowerShell/PowerShell
