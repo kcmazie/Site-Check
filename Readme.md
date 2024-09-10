@@ -9,7 +9,7 @@
 [powershell-minimum]: https://img.shields.io/badge/PowerShell-5.1+-blue.svg 
 [powershell-github]:  https://github.com/PowerShell/PowerShell
 
-# $${\color{Cyan}Powershell \space "Site-Check" \space Script}$$
+# $${\color{Cyan}Powershell \space "Site-Check.ps1"}$$
 
 #### $${\color{orange}Original \space Author \space : \space \color{white}Kenneth \space C. \space Mazie \space \color{lightblue}(kcmjr \space AT \space kcmjr.com)}$$
 
