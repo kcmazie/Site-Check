@@ -1,12 +1,12 @@
 <!---
 <meta name="google-site-verification" content="SiI2B_QvkFxrKW8YNvNf7w7gTIhzZsP9-yemxArYWwI" />
 -->
-[![Minimum Supported PowerShell Version][powershell-minimum]][powershell-github]
-[![GPLv3 license](https://img.shields.io/badge/License-GPLv3-blue.svg)](http://perso.crans.org/besson/LICENSE.html)
-[![made-with-VSCode](https://img.shields.io/badge/Made%20with-VSCode-1f425f.svg)](https://code.visualstudio.com/)
+[![Minimum Supported PowerShell Version][powershell-minimum]][powershell-github]&nbsp;&nbsp;
+[![GPLv3 license](https://img.shields.io/badge/License-GPLv3-blue.svg)](http://perso.crans.org/besson/LICENSE.html)&nbsp;&nbsp;
+[![made-with-VSCode](https://img.shields.io/badge/Made%20with-VSCode-1f425f.svg)](https://code.visualstudio.com/)&nbsp;&nbsp;
 ![GitHub watchers](https://img.shields.io/github/watchers/kcmazie/Site-Check?style=plastic)
 
-[powershell-minimum]: https://img.shields.io/badge/PowerShell-5.1+-blue.svg
+[powershell-minimum]: https://img.shields.io/badge/PowerShell-5.1+-blue.svg 
 [powershell-github]:  https://github.com/PowerShell/PowerShell
 
 # $${\color{Cyan}Powershell \space "Site-Check" \space Script}$$
